@@ -1,0 +1,6 @@
+{
+  "name": "TestPilot",
+  "description": "Professional AI QA tester dashboard connecting to external Runner API for autonomous web testing, live timeline streaming, screenshots, and structured bug reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
