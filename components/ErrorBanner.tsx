@@ -38,12 +38,12 @@ export function ErrorBanner({
         <div>
           <span className="font-semibold block text-red-900 dark:text-red-200">
             {isAuth
-              ? 'Authentication Required'
+              ? 'Configuration Required'
               : isRateLimit
-              ? 'Runner Rate Limit'
+              ? 'Rate Limit'
               : isNetwork
               ? 'Connection Issue'
-              : 'Runner API Error'}
+              : 'Test Service Error'}
           </span>
           <p className="mt-0.5 text-red-700 dark:text-red-300 leading-relaxed font-normal">
             {errorMessage}

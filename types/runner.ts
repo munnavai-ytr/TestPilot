@@ -41,8 +41,6 @@ export interface RunDetails {
 }
 
 export interface RunnerSettings {
-  runnerUrl: string;
-  accessToken: string;
   geminiApiKey: string;
 }
 

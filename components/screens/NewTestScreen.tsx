@@ -52,20 +52,12 @@ export function NewTestScreen({
   const [password, setPassword] = useState(initialValues?.credentials?.password || '');
   const [urlTouched, setUrlTouched] = useState(false);
 
-  const hasRunnerUrl = !!settings.runnerUrl?.trim();
-  const hasToken = !!settings.accessToken?.trim();
   const hasGeminiKey = !!settings.geminiApiKey?.trim();
-  const isFullyConfigured = hasRunnerUrl && hasToken && hasGeminiKey;
-
-  const missingItems: string[] = [];
-  if (!hasRunnerUrl) missingItems.push('Runner URL');
-  if (!hasToken) missingItems.push('Runner Access Token');
-  if (!hasGeminiKey) missingItems.push('Gemini API Key');
 
   // Validate URL (must start with https://)
   const isUrlValid = url.trim().startsWith('https://') && url.trim().length > 8;
   const isCommandValid = command.trim().length > 0;
-  const canSubmit = isFullyConfigured && isUrlValid && isCommandValid && !isLoading;
+  const canSubmit = hasGeminiKey && isUrlValid && isCommandValid && !isLoading;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,24 +90,21 @@ export function NewTestScreen({
           New QA Test Run
         </h1>
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          Instruct your external autonomous QA runner to inspect and validate user journeys in a live browser.
+          Instruct your autonomous QA runner to inspect and validate user journeys in a live browser.
         </p>
       </div>
 
-      {/* Runner URL, Token & Gemini Key Empty State */}
-      {!isFullyConfigured && (
+      {/* Gemini Key Empty State */}
+      {!hasGeminiKey && (
         <Card className="p-8 text-center border-dashed border-zinc-300 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-900/50">
-          <div className="w-12 h-12 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 flex items-center justify-center mx-auto mb-4 border border-zinc-200 dark:border-zinc-700">
-            <Settings className="w-6 h-6" strokeWidth={1.5} />
+          <div className="w-12 h-12 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-[#3B5BDB] flex items-center justify-center mx-auto mb-4 border border-zinc-200 dark:border-zinc-700">
+            <Sparkles className="w-6 h-6" strokeWidth={1.5} />
           </div>
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            Connect your Runner in Settings to start testing
+            Add your Gemini API key in Settings to start testing
           </h2>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 max-w-md mx-auto leading-relaxed">
-            TestPilot sends test instructions directly to your external Runner API. Testing requires your{' '}
-            <strong className="text-zinc-700 dark:text-zinc-300 font-medium">Runner URL</strong>,{' '}
-            <strong className="text-zinc-700 dark:text-zinc-300 font-medium">Access Token</strong>, and a{' '}
-            <strong className="text-zinc-700 dark:text-zinc-300 font-medium">Gemini API Key</strong> (BYOK).
+            TestPilot uses your own Gemini key to power autonomous browser actions and bug analysis. Keys are stored only in this browser and never shared.
           </p>
           <div className="mt-5">
             <Button
@@ -131,7 +120,7 @@ export function NewTestScreen({
         </Card>
       )}
 
-      {/* Loading Banner with 60-second wake up notice */}
+      {/* Loading Banner with wake up notice */}
       {isLoading && (
         <div className="p-3.5 rounded-lg border border-blue-200 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-950/20 text-xs text-blue-900 dark:text-blue-200 flex items-center gap-2.5">
           <Loader2 className="w-4 h-4 animate-spin text-[#3B5BDB] shrink-0" strokeWidth={1.5} />
@@ -346,13 +335,13 @@ export function NewTestScreen({
             )}
           </div>
 
-          {/* Missing credentials short helper line (Mandatory Prompt Requirement) */}
-          {!isFullyConfigured && (
+          {/* Missing Gemini Key short helper line */}
+          {!hasGeminiKey && (
             <div className="p-2.5 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-950/20 flex items-center justify-between gap-3 text-[11px] text-amber-800 dark:text-amber-300">
               <div className="flex items-center gap-1.5">
                 <AlertCircle className="w-3.5 h-3.5 text-[#CA8A04] shrink-0" strokeWidth={1.5} />
                 <span>
-                  Missing: <strong className="font-semibold">{missingItems.join(', ')}</strong>. Configure in Settings to enable run.
+                  Missing: <strong className="font-semibold">Gemini API Key</strong>. Configure in Settings to enable run.
                 </span>
               </div>
               <Button
@@ -370,8 +359,8 @@ export function NewTestScreen({
           {/* Submit Action */}
           <div className="pt-2 flex items-center justify-between border-t border-zinc-200 dark:border-zinc-800">
             <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
-              {!isFullyConfigured
-                ? `Requires ${missingItems.join(' & ')} in Settings`
+              {!hasGeminiKey
+                ? 'Requires Gemini API Key in Settings'
                 : !isUrlValid
                 ? 'Enter valid https:// URL'
                 : !isCommandValid

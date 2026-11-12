@@ -153,15 +153,15 @@ export function LiveRunScreen({
         </div>
       )}
 
-      {/* Runner response error object banner */}
-      {runnerReturnedError && !error && (
+      {/* Runner response error object banner if status is failed */}
+      {((status === 'failed' && details?.error?.message) || runnerReturnedError) && !error && (
         <div className="px-4 pt-3 shrink-0">
-          <div className="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-[#CA8A04] shrink-0 mt-0.5" strokeWidth={1.5} />
+          <div className="rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50/70 dark:bg-red-950/20 p-3 text-xs text-red-900 dark:text-red-200 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-[#DC2626] shrink-0 mt-0.5" strokeWidth={1.5} />
             <div>
-              <span className="font-semibold block">Runner Notice</span>
-              <p className="mt-0.5 text-amber-800 dark:text-amber-300 leading-relaxed font-normal">
-                {runnerReturnedError}
+              <span className="font-semibold block">Test Error</span>
+              <p className="mt-0.5 text-red-800 dark:text-red-300 leading-relaxed font-normal">
+                {details?.error?.message || runnerReturnedError}
               </p>
             </div>
           </div>
@@ -199,10 +199,10 @@ export function LiveRunScreen({
               <div className="h-full flex flex-col items-center justify-center p-8 text-center text-zinc-400 dark:text-zinc-500 text-xs">
                 <RefreshCw className="w-5 h-5 animate-spin mb-2 text-[#3B5BDB]" strokeWidth={1.5} />
                 <p className="font-medium text-zinc-700 dark:text-zinc-300">
-                  Starting Test Session...
+                  Starting the test machine. This can take 1 to 2 minutes.
                 </p>
                 <p className="text-[11px] text-zinc-500 mt-1 max-w-xs">
-                  Runner is preparing browser environment and opening <span className="font-mono">{url}</span>.
+                  Preparing isolated browser session and opening <span className="font-mono">{url}</span>.
                 </p>
               </div>
             ) : (

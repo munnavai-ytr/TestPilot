@@ -54,6 +54,9 @@ export function HistoryScreen({
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
             Review past automated QA test audits. Active runs update status from the Runner automatically.
           </p>
+          <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500 font-medium">
+            Reports are kept for 7 days.
+          </p>
         </div>
 
         {runs.length > 0 && (
@@ -157,7 +160,7 @@ export function HistoryScreen({
                     {isUnavailable && (
                       <div className="mt-2 text-xs text-red-600 dark:text-red-400 flex items-center gap-1.5 font-medium">
                         <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
-                        <span>This run is no longer available on the Runner.</span>
+                        <span>This run is no longer available</span>
                       </div>
                     )}
                   </div>

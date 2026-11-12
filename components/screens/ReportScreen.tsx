@@ -194,7 +194,7 @@ export function ReportScreen({
             This run is no longer available
           </h2>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 max-w-sm mx-auto">
-            The external Runner could not find records for Run ID <code className="font-mono text-zinc-700 dark:text-zinc-300">{run.runId}</code> (404 Not Found).
+            The record for Run ID <code className="font-mono text-zinc-700 dark:text-zinc-300">{run.runId}</code> has expired or is no longer available.
           </p>
           <div className="mt-6 flex items-center justify-center gap-3">
             <Button size="sm" variant="outline" onClick={onBack}>

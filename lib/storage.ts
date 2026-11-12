@@ -4,21 +4,65 @@ const SETTINGS_KEY = 'testpilot_runner_settings';
 const HISTORY_KEY = 'testpilot_runs_history';
 const THEME_KEY = 'testpilot_theme';
 
+const OWNER_KEY_STORAGE_KEY = 'testpilot_owner_key';
+let inMemoryOwnerKey = '';
+
+const ALPHANUMERIC_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
+function generateRandomKey(length = 48): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = new Uint8Array(length);
+    crypto.getRandomValues(bytes);
+    let result = '';
+    for (let i = 0; i < length; i++) {
+      result += ALPHANUMERIC_CHARS[bytes[i] % ALPHANUMERIC_CHARS.length];
+    }
+    return result;
+  }
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += ALPHANUMERIC_CHARS[Math.floor(Math.random() * ALPHANUMERIC_CHARS.length)];
+  }
+  return result;
+}
+
+export function getOwnerKey(): string {
+  if (typeof window === 'undefined') {
+    if (!inMemoryOwnerKey) {
+      inMemoryOwnerKey = generateRandomKey(48);
+    }
+    return inMemoryOwnerKey;
+  }
+
+  try {
+    const existing = window.localStorage.getItem(OWNER_KEY_STORAGE_KEY);
+    if (existing && existing.trim().length >= 24) {
+      return existing.trim();
+    }
+    const fresh = generateRandomKey(48);
+    window.localStorage.setItem(OWNER_KEY_STORAGE_KEY, fresh);
+    return fresh;
+  } catch {
+    if (!inMemoryOwnerKey) {
+      inMemoryOwnerKey = generateRandomKey(48);
+    }
+    return inMemoryOwnerKey;
+  }
+}
+
 export function getStoredSettings(): RunnerSettings {
   if (typeof window === 'undefined') {
-    return { runnerUrl: '', accessToken: '', geminiApiKey: '' };
+    return { geminiApiKey: '' };
   }
   try {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return { runnerUrl: '', accessToken: '', geminiApiKey: '' };
+    if (!raw) return { geminiApiKey: '' };
     const parsed = JSON.parse(raw);
     return {
-      runnerUrl: typeof parsed.runnerUrl === 'string' ? parsed.runnerUrl.trim() : '',
-      accessToken: typeof parsed.accessToken === 'string' ? parsed.accessToken.trim() : '',
-      geminiApiKey: typeof parsed.geminiApiKey === 'string' ? parsed.geminiApiKey.trim() : '',
+      geminiApiKey: typeof parsed?.geminiApiKey === 'string' ? parsed.geminiApiKey.trim() : '',
     };
   } catch {
-    return { runnerUrl: '', accessToken: '', geminiApiKey: '' };
+    return { geminiApiKey: '' };
   }
 }
 
@@ -28,9 +72,7 @@ export function saveStoredSettings(settings: RunnerSettings): boolean {
     window.localStorage.setItem(
       SETTINGS_KEY,
       JSON.stringify({
-        runnerUrl: settings.runnerUrl.trim(),
-        accessToken: settings.accessToken.trim(),
-        geminiApiKey: settings.geminiApiKey.trim(),
+        geminiApiKey: (settings.geminiApiKey || '').trim(),
       })
     );
     return true;

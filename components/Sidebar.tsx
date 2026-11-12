@@ -28,10 +28,7 @@ export function Sidebar({
   theme,
   onToggleTheme,
 }: SidebarProps) {
-  const isRunnerConfigured =
-    !!settings.runnerUrl?.trim() &&
-    !!settings.accessToken?.trim() &&
-    !!settings.geminiApiKey?.trim();
+  const isKeyConfigured = !!settings.geminiApiKey?.trim();
 
   return (
     <>
@@ -111,7 +108,7 @@ export function Sidebar({
 
         {/* Runner Status & Bottom Actions */}
         <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 space-y-2 text-xs">
-          {/* Runner Status Pill */}
+          {/* Gemini Key Status Pill */}
           <button
             onClick={onOpenSettings}
             className="w-full p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left flex items-center justify-between"
@@ -120,11 +117,11 @@ export function Sidebar({
               <span
                 className={cn(
                   'w-2 h-2 rounded-full shrink-0',
-                  isRunnerConfigured ? 'bg-[#16A34A]' : 'bg-[#CA8A04]'
+                  isKeyConfigured ? 'bg-[#16A34A]' : 'bg-[#CA8A04]'
                 )}
               />
               <span className="font-mono text-[11px] truncate text-zinc-700 dark:text-zinc-300">
-                {isRunnerConfigured ? 'Runner Active' : 'Runner Unset'}
+                {isKeyConfigured ? 'Key Configured' : 'Key Unset'}
               </span>
             </div>
             <Settings className="w-3.5 h-3.5 text-zinc-400" strokeWidth={1.5} />

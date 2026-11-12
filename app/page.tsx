@@ -117,7 +117,7 @@ export default function HomePage() {
   const handleSaveSettings = (newSettings: RunnerSettings) => {
     setSettings(newSettings);
     saveStoredSettings(newSettings);
-    if (startError && !startError.isAuthError && newSettings.runnerUrl) {
+    if (startError && newSettings.geminiApiKey) {
       setStartError(null);
     }
   };
@@ -152,7 +152,7 @@ export default function HomePage() {
     []
   );
 
-  // Status polling (2s ticks, following Runner API contract)
+  // Status polling (3s ticks, following Runner API contract)
   const startPolling = useCallback(
     (runId: string) => {
       clearTimers();
@@ -177,10 +177,17 @@ export default function HomePage() {
           }
         } catch (err: unknown) {
           const apiErr = err as ApiError;
-          setPollError(apiErr);
           if (apiErr.status === 404 || apiErr.isNotFound) {
             clearTimers();
             setUnavailableRunIds((prev) => new Set([...prev, runId]));
+            setPollError(apiErr);
+          } else {
+            // Treat network errors while polling as temporary: keep retrying and show a small warning, do not stop the run
+            setPollError({
+              ...apiErr,
+              message: apiErr.message || 'Temporary connection issue while checking test status. Retrying...',
+              isNetworkError: true,
+            });
           }
         }
       };
@@ -188,15 +195,14 @@ export default function HomePage() {
       // Initial immediate fetch
       executePoll();
 
-      // Regular 2-second interval
-      pollIntervalRef.current = setInterval(executePoll, 2000);
+      // Regular 3-second interval
+      pollIntervalRef.current = setInterval(executePoll, 3000);
     },
     [settings, clearTimers, recordCompletedRun]
   );
 
   // Refresh status of all non-finished runs when History loads
   const handleRefreshRunningRuns = useCallback(async () => {
-    if (!settings.runnerUrl.trim()) return;
     setIsRefreshingHistory(true);
 
     const currentHistory = getStoredHistory();
