@@ -42,6 +42,7 @@ export interface RunDetails {
 
 export interface RunnerSettings {
   geminiApiKey: string;
+  model: string;
 }
 
 export interface StoredRun {

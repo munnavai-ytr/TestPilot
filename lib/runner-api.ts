@@ -130,6 +130,7 @@ export async function createRun(
         url: payload.url,
         command: payload.command,
         mode: payload.mode,
+        model: (settings.model || '').trim() || 'auto',
         credentials:
           payload.credentials && (payload.credentials.email || payload.credentials.password)
             ? {

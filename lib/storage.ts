@@ -52,17 +52,21 @@ export function getOwnerKey(): string {
 
 export function getStoredSettings(): RunnerSettings {
   if (typeof window === 'undefined') {
-    return { geminiApiKey: '' };
+    return { geminiApiKey: '', model: 'auto' };
   }
   try {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return { geminiApiKey: '' };
+    if (!raw) return { geminiApiKey: '', model: 'auto' };
     const parsed = JSON.parse(raw);
     return {
       geminiApiKey: typeof parsed?.geminiApiKey === 'string' ? parsed.geminiApiKey.trim() : '',
+      model:
+        typeof parsed?.model === 'string' && parsed.model.trim().length > 0
+          ? parsed.model.trim()
+          : 'auto',
     };
   } catch {
-    return { geminiApiKey: '' };
+    return { geminiApiKey: '', model: 'auto' };
   }
 }
 
@@ -73,6 +77,7 @@ export function saveStoredSettings(settings: RunnerSettings): boolean {
       SETTINGS_KEY,
       JSON.stringify({
         geminiApiKey: (settings.geminiApiKey || '').trim(),
+        model: (settings.model || '').trim() || 'auto',
       })
     );
     return true;
