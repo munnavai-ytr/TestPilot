@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Play, Globe, Sparkles, ChevronDown, ChevronRight, Lock, Settings, AlertCircle, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Play, Globe, Sparkles, ChevronDown, ChevronRight, Lock, Settings, AlertCircle, Loader2, CircleHelp } from 'lucide-react';
 import { ApiError, RunnerSettings, TestMode } from '@/types/runner';
+import { TEST_MODES, TEST_MODES_FOOTER_NOTE } from '@/lib/test-modes';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { ErrorBanner } from '@/components/ErrorBanner';
@@ -51,6 +52,31 @@ export function NewTestScreen({
   const [email, setEmail] = useState(initialValues?.credentials?.email || '');
   const [password, setPassword] = useState(initialValues?.credentials?.password || '');
   const [urlTouched, setUrlTouched] = useState(false);
+  const [showModeHelp, setShowModeHelp] = useState(false);
+  const modeHelpRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showModeHelp) return;
+
+    const handlePointerDown = (e: PointerEvent) => {
+      if (modeHelpRef.current && !modeHelpRef.current.contains(e.target as Node)) {
+        setShowModeHelp(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowModeHelp(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showModeHelp]);
 
   const hasGeminiKey = !!settings.geminiApiKey?.trim();
 
@@ -234,9 +260,49 @@ export function NewTestScreen({
 
           {/* Test Mode Segmented Control: Smoke / User Flow / Full QA */}
           <div className="space-y-2">
-            <label className="block font-semibold text-zinc-900 dark:text-zinc-200">
-              Test Mode
-            </label>
+            <div ref={modeHelpRef} className="relative">
+              <div className="flex items-center gap-1.5">
+                <label className="block font-semibold text-zinc-900 dark:text-zinc-200">
+                  Test Mode
+                </label>
+                <button
+                  type="button"
+                  aria-label="What do the test modes mean?"
+                  aria-expanded={showModeHelp}
+                  aria-controls="test-modes-popover"
+                  onClick={() => setShowModeHelp((prev) => !prev)}
+                  className="inline-flex items-center justify-center rounded-full p-0.5 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B5BDB] focus-visible:ring-offset-1 dark:focus-visible:ring-offset-zinc-900"
+                >
+                  <CircleHelp className="w-4 h-4" strokeWidth={1.5} />
+                </button>
+              </div>
+
+              {showModeHelp && (
+                <div
+                  id="test-modes-popover"
+                  role="dialog"
+                  aria-label="Test modes"
+                  className="absolute left-0 top-7 z-30 w-full max-w-md rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg p-3.5 text-xs space-y-2.5"
+                >
+                  <div className="font-semibold text-zinc-900 dark:text-zinc-100">
+                    Test modes
+                  </div>
+                  <div className="space-y-2.5">
+                    {TEST_MODES.map((m) => (
+                      <div key={m.id} className="leading-relaxed text-zinc-600 dark:text-zinc-400">
+                        <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                          {m.name}:{' '}
+                        </span>
+                        <span>{m.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="pt-2 border-t border-zinc-200 dark:border-zinc-800 text-[11px] text-zinc-500 dark:text-zinc-400">
+                    {TEST_MODES_FOOTER_NOTE}
+                  </p>
+                </div>
+              )}
+            </div>
 
             <div className="grid grid-cols-3 gap-1 p-1 bg-zinc-100 dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800">
               <button
