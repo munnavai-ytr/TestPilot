@@ -24,7 +24,7 @@ import { createRun, fetchRunDetails, stopRun } from '@/lib/runner-api';
 import { NavScreen, Sidebar } from '@/components/Sidebar';
 import { SettingsDrawer } from '@/components/SettingsDrawer';
 import { NewTestScreen } from '@/components/screens/NewTestScreen';
-import { LiveRunScreen } from '@/components/screens/LiveRunScreen';
+import { LiveChatScreen } from '@/components/screens/LiveChatScreen';
 import { ReportScreen } from '@/components/screens/ReportScreen';
 import { HistoryScreen } from '@/components/screens/HistoryScreen';
 
@@ -64,7 +64,7 @@ export default function HomePage() {
   const [isRefreshingHistory, setIsRefreshingHistory] = useState(false);
   const [unavailableRunIds, setUnavailableRunIds] = useState<Set<string>>(new Set());
 
-  // Active Test Run State (for live streaming)
+  // Active Test Run State (for Live Chat)
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [activeRunUrl, setActiveRunUrl] = useState<string>('');
   const [activeRunCommand, setActiveRunCommand] = useState<string>('');
@@ -77,6 +77,7 @@ export default function HomePage() {
   const [runDetails, setRunDetails] = useState<RunDetails | null>(null);
   const [runStatus, setRunStatus] = useState<RunStatus>('running');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [isLoadingLiveDetails, setIsLoadingLiveDetails] = useState(false);
 
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
@@ -84,12 +85,15 @@ export default function HomePage() {
   const [pollError, setPollError] = useState<ApiError | null>(null);
 
   // Screen prefill for "Run again"
-  const [prefillValues, setPrefillValues] = useState<{
-    url?: string;
-    command?: string;
-    mode?: TestMode;
-    credentials?: { email?: string; password?: string } | null;
-  } | undefined>(undefined);
+  const [prefillValues, setPrefillValues] = useState<
+    | {
+        url?: string;
+        command?: string;
+        mode?: TestMode;
+        credentials?: { email?: string; password?: string } | null;
+      }
+    | undefined
+  >(undefined);
 
   // Report View State
   const [selectedReportRun, setSelectedReportRun] = useState<StoredRun | null>(null);
@@ -97,9 +101,17 @@ export default function HomePage() {
   const [isLoadingReportDetails, setIsLoadingReportDetails] = useState(false);
   const [reportFetchError, setReportFetchError] = useState<ApiError | null>(null);
 
-  // Polling interval ref
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Refs for visibility-aware polling
+  const settingsRef = useRef<RunnerSettings>(settings);
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const activePollRunIdRef = useRef<string | null>(null);
+  const terminalFinalFetchDoneRef = useRef<boolean>(false);
+  const immediatePollTriggerRef = useRef<(() => void) | null>(null);
 
   // Synchronize document theme
   useEffect(() => {
@@ -122,11 +134,13 @@ export default function HomePage() {
     }
   };
 
-  // Stop polling helper
+  // Stop polling & timers cleanly
   const clearTimers = useCallback(() => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
+    activePollRunIdRef.current = null;
+    immediatePollTriggerRef.current = null;
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
     }
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
@@ -140,7 +154,6 @@ export default function HomePage() {
       const bugs = details.bugs || [];
       const score = details.summary?.score;
 
-      // Update in storage with ONLY minimal metadata
       const updated = updateRunStatusInHistory(currentRunId, currentStatus, score, bugs.length);
       setHistory(updated);
 
@@ -152,54 +165,116 @@ export default function HomePage() {
     []
   );
 
-  // Status polling (3s ticks, following Runner API contract)
+  // Visibility-aware polling: 2s while visible, 6s while hidden, plus 1 final fetch after terminal status
   const startPolling = useCallback(
     (runId: string) => {
       clearTimers();
+      activePollRunIdRef.current = runId;
+      terminalFinalFetchDoneRef.current = false;
 
       // Elapsed Timer (1s ticks)
       timerIntervalRef.current = setInterval(() => {
         setElapsedSeconds((prev) => prev + 1);
       }, 1000);
 
+      const getPollDelay = () => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+          return 6000;
+        }
+        return 2000;
+      };
+
+      const scheduleNext = (delayMs: number) => {
+        if (activePollRunIdRef.current !== runId) return;
+        if (pollTimeoutRef.current) {
+          clearTimeout(pollTimeoutRef.current);
+        }
+        pollTimeoutRef.current = setTimeout(() => {
+          void executePoll();
+        }, delayMs);
+      };
+
       const executePoll = async () => {
+        if (activePollRunIdRef.current !== runId) return;
+
         try {
-          const details = await fetchRunDetails(settings, runId);
+          const details = await fetchRunDetails(settingsRef.current, runId);
+          if (activePollRunIdRef.current !== runId) return;
+
           setRunDetails(details);
+          setIsLoadingLiveDetails(false);
           setPollError(null);
 
           const status = details.status || 'running';
           setRunStatus(status);
 
           if (status === 'completed' || status === 'failed' || status === 'stopped') {
-            clearTimers();
+            if (timerIntervalRef.current) {
+              clearInterval(timerIntervalRef.current);
+              timerIntervalRef.current = null;
+            }
             recordCompletedRun(details, runId, status);
+
+            if (!terminalFinalFetchDoneRef.current) {
+              // Do one last fetch after terminal status is first seen so final messages are included
+              terminalFinalFetchDoneRef.current = true;
+              scheduleNext(500);
+            } else {
+              clearTimers();
+            }
+          } else {
+            scheduleNext(getPollDelay());
           }
         } catch (err: unknown) {
+          if (activePollRunIdRef.current !== runId) return;
+          setIsLoadingLiveDetails(false);
+
           const apiErr = err as ApiError;
           if (apiErr.status === 404 || apiErr.isNotFound) {
             clearTimers();
             setUnavailableRunIds((prev) => new Set([...prev, runId]));
             setPollError(apiErr);
           } else {
-            // Treat network errors while polling as temporary: keep retrying and show a small warning, do not stop the run
+            // Treat network errors while polling as temporary: keep retrying and show warning
             setPollError({
               ...apiErr,
-              message: apiErr.message || 'Temporary connection issue while checking test status. Retrying...',
+              message:
+                apiErr.message ||
+                'Temporary connection issue while checking test status. Retrying...',
               isNetworkError: true,
             });
+            scheduleNext(getPollDelay());
           }
         }
       };
 
-      // Initial immediate fetch
-      executePoll();
+      immediatePollTriggerRef.current = () => {
+        if (activePollRunIdRef.current !== runId || terminalFinalFetchDoneRef.current) return;
+        if (pollTimeoutRef.current) {
+          clearTimeout(pollTimeoutRef.current);
+          pollTimeoutRef.current = null;
+        }
+        void executePoll();
+      };
 
-      // Regular 3-second interval
-      pollIntervalRef.current = setInterval(executePoll, 3000);
+      // Immediate first poll
+      void executePoll();
     },
-    [settings, clearTimers, recordCompletedRun]
+    [clearTimers, recordCompletedRun]
   );
+
+  // Switch immediately back to 2s cadence when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && immediatePollTriggerRef.current) {
+        immediatePollTriggerRef.current();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   // Refresh status of all non-finished runs when History loads
   const handleRefreshRunningRuns = useCallback(async () => {
@@ -210,7 +285,7 @@ export default function HomePage() {
 
     for (const r of runningRuns) {
       try {
-        const details = await fetchRunDetails(settings, r.runId);
+        const details = await fetchRunDetails(settingsRef.current, r.runId);
         const status = details.status || 'running';
         const score = details.summary?.score;
         const bugCount = details.bugs?.length || 0;
@@ -225,39 +300,35 @@ export default function HomePage() {
 
     setHistory(getStoredHistory());
     setIsRefreshingHistory(false);
-  }, [settings]);
+  }, []);
 
   // Fetch full report data from Runner (with skeleton loaders)
-  const loadReportDetails = useCallback(
-    async (run: StoredRun) => {
-      setSelectedReportRun(run);
-      setIsLoadingReportDetails(true);
-      setReportFetchError(null);
-      setReportDetails(null);
+  const loadReportDetails = useCallback(async (run: StoredRun) => {
+    setSelectedReportRun(run);
+    setIsLoadingReportDetails(true);
+    setReportFetchError(null);
+    setReportDetails(null);
 
-      try {
-        const full = await fetchRunDetails(settings, run.runId);
-        setReportDetails(full);
-        // Sync any updated score or bug count into localStorage
-        const status = full.status || run.lastKnownStatus;
-        const score = full.summary?.score ?? run.score;
-        const bugCount = full.bugs?.length ?? run.bugCount;
-        const updated = updateRunStatusInHistory(run.runId, status, score, bugCount);
-        setHistory(updated);
-      } catch (err: unknown) {
-        const apiErr = err as ApiError;
-        setReportFetchError(apiErr);
-        if (apiErr.status === 404 || apiErr.isNotFound) {
-          setUnavailableRunIds((prev) => new Set([...prev, run.runId]));
-        }
-      } finally {
-        setIsLoadingReportDetails(false);
+    try {
+      const full = await fetchRunDetails(settingsRef.current, run.runId);
+      setReportDetails(full);
+      const status = full.status || run.lastKnownStatus;
+      const score = full.summary?.score ?? run.score;
+      const bugCount = full.bugs?.length ?? run.bugCount;
+      const updated = updateRunStatusInHistory(run.runId, status, score, bugCount);
+      setHistory(updated);
+    } catch (err: unknown) {
+      const apiErr = err as ApiError;
+      setReportFetchError(apiErr);
+      if (apiErr.status === 404 || apiErr.isNotFound) {
+        setUnavailableRunIds((prev) => new Set([...prev, run.runId]));
       }
-    },
-    [settings]
-  );
+    } finally {
+      setIsLoadingReportDetails(false);
+    }
+  }, []);
 
-  // Launch a new test
+  // Launch a new test -> land on Live Chat
   const handleStartTest = async (payload: {
     url: string;
     command: string;
@@ -289,12 +360,12 @@ export default function HomePage() {
       setActiveRunCredentials(payload.credentials || null);
 
       setRunStatus('running');
-      setRunDetails({ status: 'running', steps: [], bugs: [] });
+      setRunDetails({ status: 'running', steps: [], bugs: [], messages: [] });
       setElapsedSeconds(0);
+      setIsLoadingLiveDetails(false);
       setCurrentScreen('live_run');
 
-      // Prompt Requirement: Save immediately to History with ONLY minimal fields:
-      // runId, url, command, mode, createdAt, lastKnownStatus, score, bugCount. Never store screenshots or full steps.
+      // Save minimal run metadata to History
       const initialStored: StoredRun = {
         runId: newRunId,
         url: payload.url,
@@ -307,7 +378,7 @@ export default function HomePage() {
       saveRunToHistory(initialStored);
       setHistory(getStoredHistory());
 
-      // Begin polling
+      // Begin visibility-aware polling
       startPolling(newRunId);
     } catch (err: unknown) {
       const apiErr = err as ApiError;
@@ -327,7 +398,6 @@ export default function HomePage() {
       clearTimers();
       setRunStatus('stopped');
 
-      // Refresh final details
       try {
         const finalDetails = await fetchRunDetails(settings, activeRunId);
         setRunDetails(finalDetails);
@@ -345,24 +415,74 @@ export default function HomePage() {
     }
   };
 
-  // Open run from History:
-  // If running -> resume Live Run and resume polling
-  // If finished -> open Report and fetch full data with skeleton loader
-  const handleOpenRunFromHistory = (run: StoredRun) => {
+  // Open run from History -> always opens Live Chat screen:
+  // If running -> resumes polling
+  // If finished -> loads full conversation & shows final report card
+  const handleOpenRunFromHistory = async (run: StoredRun) => {
+    clearTimers();
+    setPollError(null);
+    setActiveRunId(run.runId);
+    setActiveRunUrl(run.url);
+    setActiveRunCommand(run.command);
+    setActiveRunMode(run.mode);
+    setActiveRunCredentials(run.credentials || null);
+    setCurrentScreen('live_run');
+
     if (run.lastKnownStatus === 'running') {
-      setActiveRunId(run.runId);
-      setActiveRunUrl(run.url);
-      setActiveRunCommand(run.command);
-      setActiveRunMode(run.mode);
-      setActiveRunCredentials(run.credentials || null);
       setRunStatus('running');
-      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - new Date(run.createdAt).getTime()) / 1000)));
-      setCurrentScreen('live_run');
+      setRunDetails(null);
+      setIsLoadingLiveDetails(true);
+      setElapsedSeconds(
+        Math.max(0, Math.floor((Date.now() - new Date(run.createdAt).getTime()) / 1000))
+      );
       startPolling(run.runId);
     } else {
-      setCurrentScreen('report');
-      loadReportDetails(run);
+      setRunStatus(run.lastKnownStatus);
+      setRunDetails(null);
+      setElapsedSeconds(0);
+      setIsLoadingLiveDetails(true);
+
+      try {
+        const full = await fetchRunDetails(settingsRef.current, run.runId);
+        const resolvedStatus = full.status || run.lastKnownStatus;
+        setRunDetails(full);
+        setRunStatus(resolvedStatus);
+
+        const totalMs = (full.steps || []).reduce((acc, s) => acc + (s.durationMs || 0), 0);
+        if (totalMs > 0) {
+          setElapsedSeconds(Math.round(totalMs / 1000));
+        }
+
+        const updated = updateRunStatusInHistory(
+          run.runId,
+          resolvedStatus,
+          full.summary?.score ?? run.score,
+          full.bugs?.length ?? run.bugCount
+        );
+        setHistory(updated);
+
+        if (resolvedStatus === 'running') {
+          setElapsedSeconds(
+            Math.max(0, Math.floor((Date.now() - new Date(run.createdAt).getTime()) / 1000))
+          );
+          startPolling(run.runId);
+        }
+      } catch (err: unknown) {
+        const apiErr = err as ApiError;
+        setPollError(apiErr);
+        if (apiErr.status === 404 || apiErr.isNotFound) {
+          setUnavailableRunIds((prev) => new Set([...prev, run.runId]));
+        }
+      } finally {
+        setIsLoadingLiveDetails(false);
+      }
     }
+  };
+
+  // Report button directly inside History cards opens ReportScreen
+  const handleOpenReportFromHistory = (run: StoredRun) => {
+    setCurrentScreen('report');
+    void loadReportDetails(run);
   };
 
   // Run Again from Report
@@ -428,7 +548,11 @@ export default function HomePage() {
       />
 
       {/* Main Content Viewport (max-width 1200px) */}
-      <main className="flex-1 min-w-0 max-w-[1200px] pb-16 md:pb-0">
+      <main
+        className={`flex-1 min-w-0 max-w-[1200px] ${
+          currentScreen === 'live_run' ? 'pb-14 md:pb-0' : 'pb-16 md:pb-0'
+        }`}
+      >
         {currentScreen === 'new_test' && (
           <NewTestScreen
             settings={settings}
@@ -442,29 +566,35 @@ export default function HomePage() {
         )}
 
         {currentScreen === 'live_run' && (
-          <LiveRunScreen
+          <LiveChatScreen
+            key={activeRunId || 'none'}
             runId={activeRunId || ''}
             url={activeRunUrl}
             command={activeRunCommand}
             details={runDetails}
             status={runStatus}
             elapsedSeconds={elapsedSeconds}
+            isLoadingDetails={isLoadingLiveDetails}
             onStop={handleStopRun}
             onViewReport={() => {
               if (activeRunId) {
+                const existingHistoryItem = history.find((h) => h.runId === activeRunId);
                 const currentStored: StoredRun = {
                   runId: activeRunId,
                   url: activeRunUrl,
                   command: activeRunCommand,
                   mode: activeRunMode,
-                  createdAt: new Date().toISOString(),
+                  createdAt: existingHistoryItem?.createdAt || new Date().toISOString(),
                   lastKnownStatus: runStatus,
                   score: runDetails?.summary?.score,
                   bugCount: runDetails?.bugs?.length || 0,
+                  credentials: activeRunCredentials,
                   details: runDetails || {},
                 };
                 setSelectedReportRun(currentStored);
                 setReportDetails(runDetails);
+                setReportFetchError(null);
+                setIsLoadingReportDetails(false);
                 setCurrentScreen('report');
               }
             }}
@@ -472,13 +602,20 @@ export default function HomePage() {
             isStopping={isStopping}
             error={pollError}
             onRetryPoll={() => {
-              if (activeRunId) startPolling(activeRunId);
+              if (activeRunId) {
+                if (runStatus === 'running') {
+                  startPolling(activeRunId);
+                } else {
+                  const existing = history.find((h) => h.runId === activeRunId);
+                  if (existing) void handleOpenRunFromHistory(existing);
+                }
+              }
             }}
           />
         )}
 
-        {currentScreen === 'report' && (
-          selectedReportRun ? (
+        {currentScreen === 'report' &&
+          (selectedReportRun ? (
             <ReportScreen
               run={selectedReportRun}
               details={reportDetails}
@@ -499,13 +636,13 @@ export default function HomePage() {
                 Return to New Test
               </button>
             </div>
-          )
-        )}
+          ))}
 
         {currentScreen === 'history' && (
           <HistoryScreen
             runs={history}
             onOpenRun={handleOpenRunFromHistory}
+            onOpenReport={handleOpenReportFromHistory}
             onNewTest={() => setCurrentScreen('new_test')}
             onDeleteRun={handleDeleteRun}
             onClearHistory={handleClearHistory}

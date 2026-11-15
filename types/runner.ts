@@ -6,6 +6,27 @@ export type RunStatus = 'running' | 'completed' | 'failed' | 'stopped';
 
 export type BugSeverity = 'critical' | 'high' | 'medium' | 'low';
 
+export type ChatMessageType = 'ai' | 'finding' | 'system' | 'summary';
+
+export type ChatMessageState = 'running' | 'done' | 'failed';
+
+export interface ChatMessage {
+  id: string;
+  ts?: string;
+  type: ChatMessageType;
+  caption?: string;
+  text: string;
+  stepIndex?: number;
+  screenshot?: string | null;
+  severity?: BugSeverity;
+  state?: ChatMessageState;
+}
+
+export interface RunBudget {
+  used: number;
+  max: number;
+}
+
 export interface Step {
   index?: number;
   action?: string;
@@ -38,6 +59,9 @@ export interface RunDetails {
     code?: string;
     message?: string;
   } | null;
+  messages?: ChatMessage[];
+  liveStatus?: string | null;
+  budget?: RunBudget | null;
 }
 
 export interface RunnerSettings {

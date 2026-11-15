@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/Badge';
 interface HistoryScreenProps {
   runs: StoredRun[];
   onOpenRun: (run: StoredRun) => void;
+  onOpenReport?: (run: StoredRun) => void;
   onNewTest: () => void;
   onDeleteRun: (runId: string) => void;
   onClearHistory: () => void;
@@ -31,6 +32,7 @@ interface HistoryScreenProps {
 export function HistoryScreen({
   runs,
   onOpenRun,
+  onOpenReport,
   onNewTest,
   onDeleteRun,
   onClearHistory,
@@ -215,13 +217,20 @@ export function HistoryScreen({
                         onClick={() => onOpenRun(run)}
                         icon={<Radio className="w-3.5 h-3.5 animate-pulse" strokeWidth={1.5} />}
                       >
-                        Resume Live Run
+                        Resume Live Chat
                       </Button>
                     ) : (
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => onOpenRun(run)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onOpenReport) {
+                            onOpenReport(run);
+                          } else {
+                            onOpenRun(run);
+                          }
+                        }}
                         icon={<FileText className="w-3.5 h-3.5" strokeWidth={1.5} />}
                       >
                         Report

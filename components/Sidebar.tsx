@@ -84,7 +84,7 @@ export function Sidebar({
             >
               <div className="flex items-center gap-2.5 truncate">
                 <Radio className="w-4 h-4 text-[#3B5BDB] animate-pulse shrink-0" strokeWidth={1.5} />
-                <span className="truncate">Live Run</span>
+                <span className="truncate">Live Chat</span>
               </div>
               <span className="text-[10px] font-mono px-1 rounded bg-[#3B5BDB] text-white">
                 LIVE
@@ -214,7 +214,7 @@ export function Sidebar({
             )}
           >
             <Radio className="w-4 h-4 mb-0.5 animate-pulse" strokeWidth={1.5} />
-            <span>Live Run</span>
+            <span>Live Chat</span>
           </button>
         )}
 
