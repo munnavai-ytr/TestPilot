@@ -1,11 +1,11 @@
 'use client';
 
 import React from 'react';
-import { PlusCircle, History, Settings, Sun, Moon, Radio, Terminal, Laptop } from 'lucide-react';
+import { PlusCircle, History, Settings, Sun, Moon, Radio, Terminal, Laptop, FlaskConical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RunnerSettings } from '@/types/runner';
 
-export type NavScreen = 'new_test' | 'live_run' | 'report' | 'history';
+export type NavScreen = 'studio' | 'new_test' | 'live_run' | 'report' | 'history';
 
 interface SidebarProps {
   currentScreen: NavScreen;
@@ -58,6 +58,19 @@ export function Sidebar({
           <div className="px-2 pb-1 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
             Workspace
           </div>
+
+          <button
+            onClick={() => onNavigate('studio')}
+            className={cn(
+              'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg font-medium transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B5BDB]',
+              currentScreen === 'studio'
+                ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+            )}
+          >
+            <FlaskConical className="w-4 h-4 text-[#3B5BDB]" strokeWidth={1.5} />
+            <span>Studio</span>
+          </button>
 
           <button
             onClick={() => onNavigate('new_test')}
@@ -189,11 +202,24 @@ export function Sidebar({
       </header>
 
       {/* Mobile Bottom Tab Bar */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 h-14 bg-white/95 dark:bg-zinc-900/95 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-around px-2 backdrop-blur-xs">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 h-14 bg-white/95 dark:bg-zinc-900/95 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-around px-1 backdrop-blur-xs">
+        <button
+          onClick={() => onNavigate('studio')}
+          className={cn(
+            'flex flex-col items-center justify-center py-1 px-2 text-[10px] font-medium transition-colors',
+            currentScreen === 'studio'
+              ? 'text-[#3B5BDB] dark:text-blue-400'
+              : 'text-zinc-500 dark:text-zinc-400'
+          )}
+        >
+          <FlaskConical className="w-4 h-4 mb-0.5" strokeWidth={1.5} />
+          <span>Studio</span>
+        </button>
+
         <button
           onClick={() => onNavigate('new_test')}
           className={cn(
-            'flex flex-col items-center justify-center py-1 px-3 text-[10px] font-medium transition-colors',
+            'flex flex-col items-center justify-center py-1 px-2 text-[10px] font-medium transition-colors',
             currentScreen === 'new_test'
               ? 'text-[#3B5BDB] dark:text-blue-400'
               : 'text-zinc-500 dark:text-zinc-400'
@@ -207,7 +233,7 @@ export function Sidebar({
           <button
             onClick={() => onNavigate('live_run')}
             className={cn(
-              'flex flex-col items-center justify-center py-1 px-3 text-[10px] font-medium transition-colors',
+              'flex flex-col items-center justify-center py-1 px-2 text-[10px] font-medium transition-colors',
               currentScreen === 'live_run'
                 ? 'text-[#3B5BDB] dark:text-blue-400'
                 : 'text-zinc-500 dark:text-zinc-400'
@@ -221,7 +247,7 @@ export function Sidebar({
         <button
           onClick={() => onNavigate('history')}
           className={cn(
-            'flex flex-col items-center justify-center py-1 px-3 text-[10px] font-medium transition-colors',
+            'flex flex-col items-center justify-center py-1 px-2 text-[10px] font-medium transition-colors',
             currentScreen === 'history'
               ? 'text-[#3B5BDB] dark:text-blue-400'
               : 'text-zinc-500 dark:text-zinc-400'
@@ -233,7 +259,7 @@ export function Sidebar({
 
         <button
           onClick={onOpenSettings}
-          className="flex flex-col items-center justify-center py-1 px-3 text-[10px] font-medium text-zinc-500 dark:text-zinc-400"
+          className="flex flex-col items-center justify-center py-1 px-2 text-[10px] font-medium text-zinc-500 dark:text-zinc-400"
         >
           <Settings className="w-4 h-4 mb-0.5" strokeWidth={1.5} />
           <span>Settings</span>

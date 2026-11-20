@@ -27,6 +27,7 @@ import { NewTestScreen } from '@/components/screens/NewTestScreen';
 import { LiveChatScreen } from '@/components/screens/LiveChatScreen';
 import { ReportScreen } from '@/components/screens/ReportScreen';
 import { HistoryScreen } from '@/components/screens/HistoryScreen';
+import { StudioRoot } from '@/components/studio/StudioRoot';
 
 function applyThemeToDocument(t: 'light' | 'dark' | 'system') {
   if (typeof window === 'undefined') return;
@@ -60,7 +61,7 @@ export default function HomePage() {
 
   // History & Navigation
   const [history, setHistory] = useState<StoredRun[]>(() => getStoredHistory());
-  const [currentScreen, setCurrentScreen] = useState<NavScreen>('new_test');
+  const [currentScreen, setCurrentScreen] = useState<NavScreen>('studio');
   const [isRefreshingHistory, setIsRefreshingHistory] = useState(false);
   const [unavailableRunIds, setUnavailableRunIds] = useState<Set<string>>(new Set());
 
@@ -547,12 +548,29 @@ export default function HomePage() {
         onToggleTheme={handleToggleTheme}
       />
 
-      {/* Main Content Viewport (max-width 1200px) */}
+      {/* Main Content Viewport (max-width 1200px for cloud views, full-bleed for Studio) */}
       <main
-        className={`flex-1 min-w-0 max-w-[1200px] ${
-          currentScreen === 'live_run' ? 'pb-14 md:pb-0' : 'pb-16 md:pb-0'
+        className={`flex-1 min-w-0 ${
+          currentScreen === 'studio'
+            ? 'max-w-none pb-14 md:pb-0'
+            : currentScreen === 'live_run'
+            ? 'max-w-[1200px] pb-14 md:pb-0'
+            : 'max-w-[1200px] pb-16 md:pb-0'
         }`}
       >
+        {currentScreen === 'studio' && (
+          <StudioRoot
+            settings={settings}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            onUseCloudMode={(appUrl) => {
+              if (appUrl) {
+                setPrefillValues({ url: appUrl });
+              }
+              setCurrentScreen('new_test');
+            }}
+          />
+        )}
+
         {currentScreen === 'new_test' && (
           <NewTestScreen
             settings={settings}
