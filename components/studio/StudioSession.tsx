@@ -288,6 +288,14 @@ export function StudioSessionView({
         setQuotaWaitMessage((curr) => (curr && curr.includes(`${secs}s`) ? null : curr));
       }, delayMs);
     },
+    onBusyWait: (delayMs) => {
+      setQuotaWaitMessage('The AI service is busy, retrying...');
+      setTimeout(() => {
+        setQuotaWaitMessage((curr) =>
+          curr === 'The AI service is busy, retrying...' ? null : curr
+        );
+      }, delayMs);
+    },
   };
 
   const handlePause = () => {

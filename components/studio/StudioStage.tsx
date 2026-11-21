@@ -11,6 +11,7 @@ import {
   Cloud,
   WifiOff,
   Loader2,
+  X,
 } from 'lucide-react';
 import { DEVICE_PRESETS } from '@/lib/studio/store';
 import { BridgeConnectionStatus, StageActivityStatus } from '@/lib/studio/types';
@@ -55,6 +56,12 @@ export function StudioStage({
   const [confirmReset, setConfirmReset] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [diagnosticsDismissed, setDiagnosticsDismissed] = useState(false);
+
+  const handleRetryFromStage = () => {
+    setDiagnosticsDismissed(false);
+    onRetryConnection();
+  };
 
   useEffect(() => {
     const el = containerRef.current;
@@ -251,6 +258,25 @@ export function StudioStage({
         </div>
       )}
 
+      {/* Non-blocking Banner when diagnostics card is dismissed */}
+      {connectionStatus === 'failed' && diagnosticsDismissed && (
+        <div className="px-3 py-2 border-b border-amber-200 dark:border-amber-900/50 bg-amber-50/80 dark:bg-amber-950/30 flex items-center justify-between gap-2 text-xs shrink-0">
+          <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200">
+            <AlertTriangle className="w-3.5 h-3.5 text-[#CA8A04] shrink-0" strokeWidth={1.5} />
+            <span>App not connected.</span>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={handleRetryFromStage}
+            icon={<RefreshCw className="w-3 h-3" strokeWidth={1.5} />}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
       {/* Stage Viewport */}
       <div
         ref={containerRef}
@@ -292,21 +318,31 @@ export function StudioStage({
         </div>
 
         {/* Connection Diagnostics Overlay Card (after 10s with no hello) */}
-        {connectionStatus === 'failed' && (
+        {connectionStatus === 'failed' && !diagnosticsDismissed && (
           <div className="absolute inset-0 z-30 bg-zinc-950/70 backdrop-blur-[2px] flex items-center justify-center p-4 overflow-y-auto">
             <div className="max-w-md w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-lg space-y-3.5 text-xs">
-              <div className="flex items-start gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-4 h-4 text-[#CA8A04]" strokeWidth={1.5} />
+              <div className="flex items-start justify-between gap-2.5">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-4 h-4 text-[#CA8A04]" strokeWidth={1.5} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                      Waiting for TestPilot SDK connection
+                    </h3>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                      No handshake arrived from your app within 10 seconds. Check these 4 common causes:
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                    Waiting for TestPilot SDK connection
-                  </h3>
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-                    No handshake arrived from your app within 10 seconds. Check these 4 common causes:
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setDiagnosticsDismissed(true)}
+                  aria-label="Dismiss"
+                  className="p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B5BDB] shrink-0"
+                >
+                  <X className="w-4 h-4" strokeWidth={1.5} />
+                </button>
               </div>
 
               <ol className="space-y-1.5 text-[11.5px] text-zinc-700 dark:text-zinc-300 list-decimal list-inside bg-zinc-50 dark:bg-zinc-950/60 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800">
@@ -324,7 +360,7 @@ export function StudioStage({
                   type="button"
                   variant="primary"
                   size="sm"
-                  onClick={onRetryConnection}
+                  onClick={handleRetryFromStage}
                   icon={<RefreshCw className="w-3.5 h-3.5" strokeWidth={1.5} />}
                 >
                   Retry

@@ -186,12 +186,20 @@ function tryParseJson<T>(raw: string): T | null {
   }
 }
 
+const TEMPORARY_HTTP_STATUSES = new Set([500, 502, 503, 504]);
+const TEMPORARY_RETRY_DELAYS_MS = [2000, 4000, 6000];
+
 export interface StudioGeminiHooks {
   onRequestUsed?: () => void;
   onQuotaWait?: (delayMs: number, attempt: number) => void;
+  onBusyWait?: (delayMs: number, attempt: number, status: number) => void;
 }
 
-async function resolveCandidateModels(key: string, signal?: AbortSignal): Promise<string[]> {
+async function resolveCandidateModels(
+  key: string,
+  signal?: AbortSignal,
+  hooks: StudioGeminiHooks = {}
+): Promise<string[]> {
   const stored = getStoredSettings();
   const preferred = (stored.model || 'auto').trim();
   const keyTag = computeSimpleTag(key);
@@ -212,25 +220,46 @@ async function resolveCandidateModels(key: string, signal?: AbortSignal): Promis
   }
 
   let res: Response;
-  try {
-    res = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models?pageSize=200',
-      {
-        method: 'GET',
-        headers: {
-          'x-goog-api-key': key,
-        },
-        signal,
+  let busyAttempt = 0;
+
+  while (true) {
+    try {
+      res = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models?pageSize=200',
+        {
+          method: 'GET',
+          headers: {
+            'x-goog-api-key': key,
+          },
+          signal,
+        }
+      );
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw new StudioGeminiError('Stopped.', { isAborted: true });
       }
-    );
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new StudioGeminiError('Stopped.', { isAborted: true });
+      throw new StudioGeminiError(
+        'Could not reach the Gemini API. Check your internet connection.',
+        { isNetworkError: true }
+      );
     }
-    throw new StudioGeminiError(
-      'Could not reach the Gemini API. Check your internet connection.',
-      { isNetworkError: true }
-    );
+
+    if (TEMPORARY_HTTP_STATUSES.has(res.status)) {
+      await res.text().catch(() => '');
+      if (busyAttempt < TEMPORARY_RETRY_DELAYS_MS.length) {
+        const delayMs = TEMPORARY_RETRY_DELAYS_MS[busyAttempt];
+        busyAttempt += 1;
+        hooks.onBusyWait?.(delayMs, busyAttempt, res.status);
+        await sleepWithAbort(delayMs, signal);
+        continue;
+      }
+      throw new StudioGeminiError(
+        `The Gemini service is busy right now (HTTP ${res.status}). Try again in a minute.`,
+        { status: res.status }
+      );
+    }
+
+    break;
   }
 
   if (!res.ok) {
@@ -292,7 +321,7 @@ export async function generateJson<T = unknown>(
   const studioSettings = getStudioSettings();
   const minDelayMs = Math.max(0, studioSettings.minDelayMs ?? 1200);
 
-  const candidates = await resolveCandidateModels(key, params.signal);
+  const candidates = await resolveCandidateModels(key, params.signal, hooks);
 
   let lastError: Error | null = null;
 
@@ -311,10 +340,11 @@ export async function generateJson<T = unknown>(
             ];
 
       let quotaAttempt = 0;
+      let busyAttempt = 0;
       let rawResponseText: string | null = null;
       let shouldTryNextModel = false;
 
-      while (quotaAttempt <= 4) {
+      while (true) {
         if (params.signal?.aborted) {
           throw new StudioGeminiError('Stopped.', { isAborted: true });
         }
@@ -382,6 +412,23 @@ export async function generateJson<T = unknown>(
           hooks.onQuotaWait?.(delayMs, quotaAttempt);
           await sleepWithAbort(delayMs, params.signal);
           continue;
+        }
+
+        if (TEMPORARY_HTTP_STATUSES.has(res.status)) {
+          await res.text().catch(() => '');
+          if (busyAttempt < TEMPORARY_RETRY_DELAYS_MS.length) {
+            const delayMs = TEMPORARY_RETRY_DELAYS_MS[busyAttempt];
+            busyAttempt += 1;
+            hooks.onBusyWait?.(delayMs, busyAttempt, res.status);
+            await sleepWithAbort(delayMs, params.signal);
+            continue;
+          }
+          lastError = new StudioGeminiError(
+            `The Gemini service is busy right now (HTTP ${res.status}). Try again in a minute.`,
+            { status: res.status }
+          );
+          shouldTryNextModel = true;
+          break;
         }
 
         if (!res.ok) {
